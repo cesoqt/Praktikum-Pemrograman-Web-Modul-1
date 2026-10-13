@@ -23,6 +23,6 @@ return new class extends Migration
      */
     public function down(): void
     {
-        Schema::droplist('program_studi');
+        Schema::dropIfExists('program_studi');
     }
 };

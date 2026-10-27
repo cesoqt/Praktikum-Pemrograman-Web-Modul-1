@@ -530,13 +530,163 @@ Route::post('/produk', function (Request $request) {
 })->name('produk.store');
 
 Route::get('/produk/{id}/edit', function (int $id) {
-    // Akan diimplementasikan pada commit Update
+    try {
+        $pdo = DB::connection()->getPdo();
+
+        $ambilProduk = $pdo->prepare(
+            'SELECT id, kode_produk, nama_produk, sku, stok, kategori_produk_id
+             FROM produk WHERE id = :id'
+        );
+        $ambilProduk->execute(['id' => $id]);
+        $produk = $ambilProduk->fetch(PDO::FETCH_ASSOC);
+
+        if (! $produk) {
+            return redirect()->route('produk.index')->with(
+                'gagal',
+                'Data produk tidak ditemukan.'
+            );
+        }
+
+        $ambilKategori = $pdo->prepare(
+            'SELECT id, nama_kategori FROM kategori_produk ORDER BY nama_kategori ASC'
+        );
+        $ambilKategori->execute();
+        $daftarKategori = $ambilKategori->fetchAll(PDO::FETCH_ASSOC);
+
+        return view('produk-edit', compact('produk', 'daftarKategori'));
+    } catch (Throwable $error) {
+        report($error);
+
+        return redirect()->route('produk.index')->with(
+            'gagal',
+            'Data gagal dibuka untuk diubah.'
+        );
+    }
 })->name('produk.edit');
 
 Route::put('/produk/{id}', function (Request $request, int $id) {
-    // Akan diimplementasikan pada commit Update
+    // Sanitasi input teks relevan
+    $dataBersih = [
+        'kode_produk' => trim(strip_tags((string) $request->input('kode_produk'))),
+        'nama_produk' => trim(strip_tags((string) $request->input('nama_produk'))),
+        'sku' => trim(strip_tags((string) $request->input('sku'))),
+        'stok' => trim((string) $request->input('stok')),
+        'kategori_produk_id' => trim((string) $request->input('kategori_produk_id')),
+    ];
+
+    // Validasi server-side
+    $validator = Validator::make($dataBersih, [
+        'kode_produk' => ['required', 'alpha_num', 'size:10'],
+        'nama_produk' => ['required', 'string', 'min:3', 'max:100'],
+        'sku' => ['required', 'string', 'min:5', 'max:30'],
+        'stok' => ['required', 'integer', 'min:0', 'max:500'],
+        'kategori_produk_id' => ['required', 'integer', 'exists:kategori_produk,id'],
+    ], [
+        'kode_produk.required' => 'Kode produk wajib diisi.',
+        'kode_produk.alpha_num' => 'Kode produk harus berupa alfanumerik.',
+        'kode_produk.size' => 'Kode produk harus tepat 10 karakter.',
+        'nama_produk.required' => 'Nama produk wajib diisi.',
+        'nama_produk.min' => 'Nama produk minimal 3 karakter.',
+        'nama_produk.max' => 'Nama produk maksimal 100 karakter.',
+        'sku.required' => 'SKU wajib diisi.',
+        'sku.min' => 'SKU minimal 5 karakter.',
+        'sku.max' => 'SKU maksimal 30 karakter.',
+        'stok.required' => 'Stok wajib diisi.',
+        'stok.integer' => 'Stok harus berupa bilangan bulat.',
+        'stok.min' => 'Stok minimal 0.',
+        'stok.max' => 'Stok maksimal 500.',
+        'kategori_produk_id.required' => 'Kategori produk wajib dipilih.',
+        'kategori_produk_id.exists' => 'Kategori produk yang dipilih tidak valid.',
+    ]);
+
+    if ($validator->fails()) {
+        return back()
+            ->withInput()
+            ->withErrors($validator)
+            ->with('gagal', 'Data gagal diperbarui karena input tidak valid.');
+    }
+
+    try {
+        $pdo = DB::connection()->getPdo();
+
+        // Pencegahan konflik nilai unik milik produk lain
+        $cek = $pdo->prepare(
+            'SELECT COUNT(*) FROM produk
+             WHERE (kode_produk = :kode_produk OR sku = :sku)
+               AND id <> :id'
+        );
+        $cek->execute([
+            'kode_produk' => $dataBersih['kode_produk'],
+            'sku' => $dataBersih['sku'],
+            'id' => $id,
+        ]);
+
+        if ((int) $cek->fetchColumn() > 0) {
+            return back()->withInput()->with(
+                'gagal',
+                'Kode produk atau SKU sudah digunakan produk lain.'
+            );
+        }
+
+        $ubah = $pdo->prepare(
+            'UPDATE produk
+             SET kode_produk = :kode_produk,
+                 nama_produk = :nama_produk,
+                 sku = :sku,
+                 stok = :stok,
+                 kategori_produk_id = :kategori_produk_id,
+                 updated_at = :updated_at
+             WHERE id = :id'
+        );
+        $ubah->execute([
+            'kode_produk' => $dataBersih['kode_produk'],
+            'nama_produk' => $dataBersih['nama_produk'],
+            'sku' => $dataBersih['sku'],
+            'stok' => (int) $dataBersih['stok'],
+            'kategori_produk_id' => (int) $dataBersih['kategori_produk_id'],
+            'updated_at' => date('Y-m-d H:i:s'),
+            'id' => $id,
+        ]);
+
+        return redirect()->route('produk.index')->with(
+            'berhasil',
+            'Data produk berhasil diperbarui.'
+        );
+    } catch (Throwable $error) {
+        report($error);
+
+        return back()->withInput()->with(
+            'gagal',
+            'Data gagal diperbarui. Periksa koneksi dan data.'
+        );
+    }
 })->name('produk.update');
 
 Route::delete('/produk/{id}', function (int $id) {
-    // Akan diimplementasikan pada commit Delete
+    try {
+        $pdo = DB::connection()->getPdo();
+        $hapus = $pdo->prepare(
+            'DELETE FROM produk WHERE id = :id'
+        );
+        $hapus->execute(['id' => $id]);
+
+        if ($hapus->rowCount() === 0) {
+            return redirect()->route('produk.index')->with(
+                'gagal',
+                'Data produk tidak ditemukan.'
+            );
+        }
+
+        return redirect()->route('produk.index')->with(
+            'berhasil',
+            'Data produk berhasil dihapus.'
+        );
+    } catch (Throwable $error) {
+        report($error);
+
+        return redirect()->route('produk.index')->with(
+            'gagal',
+            'Data gagal dihapus. Periksa relasi atau koneksi.'
+        );
+    }
 })->name('produk.destroy');

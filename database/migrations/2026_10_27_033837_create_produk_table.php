@@ -25,7 +25,9 @@ return new class extends Migration
             $table->timestamps();
         });
 
-        DB::statement('ALTER TABLE produk ADD CONSTRAINT chk_produk_stok CHECK (stok BETWEEN 0 AND 500)');
+        if (DB::getDriverName() === 'mysql') {
+            DB::statement('ALTER TABLE produk ADD CONSTRAINT chk_produk_stok CHECK (stok BETWEEN 0 AND 500)');
+        }
     }
 
     /**

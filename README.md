@@ -1,58 +1,127 @@
-<p align="center"><a href="https://laravel.com" target="_blank"><img src="https://raw.githubusercontent.com/laravel/art/master/logo-lockup/5%20SVG/2%20CMYK/1%20Full%20Color/laravel-logolockup-cmyk-red.svg" width="400" alt="Laravel Logo"></a></p>
+# Praktikum Pemrograman Web - Ujian Tengah Semester (UTS)
+## Tipe C: Sistem Data Produk UMKM
 
-<p align="center">
-<a href="https://github.com/laravel/framework/actions"><img src="https://github.com/laravel/framework/workflows/tests/badge.svg" alt="Build Status"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/dt/laravel/framework" alt="Total Downloads"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/v/laravel/framework" alt="Latest Stable Version"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/l/laravel/framework" alt="License"></a>
-</p>
+Repository ini berisi implementasi proyek Ujian Tengah Semester (UTS) mata kuliah **Praktikum Pemrograman Web** (INF11197) berbasis kerangka kerja **Laravel** dan basis data **MySQL**.
 
-## About Laravel
+---
 
-Laravel is a web application framework with expressive, elegant syntax. We believe development must be an enjoyable and creative experience to be truly fulfilling. Laravel takes the pain out of development by easing common tasks used in many web projects, such as:
+### Identitas Mahasiswa
+- **NIM**: 2401020031
+- **Mata Kuliah**: Praktikum Pemrograman Web (INF11197)
+- **Tipe Soal**: Tipe C (Sistem Data Produk UMKM)
+- **Basis Data**: `produk_umkm_2401020031`
+- **Route Utama**: `/produk`
 
-- [Simple, fast routing engine](https://laravel.com/docs/routing).
-- [Powerful dependency injection container](https://laravel.com/docs/container).
-- Multiple back-ends for [session](https://laravel.com/docs/session) and [cache](https://laravel.com/docs/cache) storage.
-- Expressive, intuitive [database ORM](https://laravel.com/docs/eloquent).
-- Database agnostic [schema migrations](https://laravel.com/docs/migrations).
-- [Robust background job processing](https://laravel.com/docs/queues).
-- [Real-time event broadcasting](https://laravel.com/docs/broadcasting).
+---
 
-Laravel is accessible, powerful, and provides tools required for large, robust applications.
+### Struktur Basis Data & Relasi
+Aplikasi menggunakan relasi satu-ke-banyak (*one-to-many*) antara entitas kategori dan produk dengan integritas referensial:
 
-## Learning Laravel
+1. **Tabel Master (`kategori_produk`)**:
+   - `id`: `BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY`
+   - `nama_kategori`: `VARCHAR(100) NOT NULL UNIQUE`
 
-Laravel has the most extensive and thorough [documentation](https://laravel.com/docs) and video tutorial library of all modern web application frameworks, making it a breeze to get started with the framework.
+2. **Tabel Utama (`produk`)**:
+   - `id`: `BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY`
+   - `kode_produk`: `CHAR(10) NOT NULL UNIQUE`
+   - `nama_produk`: `VARCHAR(100) NOT NULL`
+   - `sku`: `VARCHAR(30) NOT NULL UNIQUE`
+   - `stok`: `SMALLINT UNSIGNED NOT NULL CHECK (stok BETWEEN 0 AND 500)`
+   - `kategori_produk_id`: `BIGINT UNSIGNED NOT NULL` (Foreign Key ke `kategori_produk.id`, `ON UPDATE CASCADE`, `ON DELETE RESTRICT`)
+   - `created_at` & `updated_at`: `TIMESTAMP NULL`
 
-In addition, [Laracasts](https://laracasts.com) contains thousands of video tutorials on a range of topics including Laravel, modern PHP, unit testing, and JavaScript. Boost your skills by digging into our comprehensive video library.
+---
 
-You can also watch bite-sized lessons with real-world projects on [Laravel Learn](https://laravel.com/learn), where you will be guided through building a Laravel application from scratch while learning PHP fundamentals.
+### Daftar Route CRUD
 
-## Agentic Development
+| Method | URI | Nama Route | Deskripsi |
+|---|---|---|---|
+| `GET` | `/produk` | `produk.index` | Halaman indeks utama (tabel data, form tambah, form cari & filter) |
+| `POST` | `/produk` | `produk.store` | Menyimpan data produk baru dengan validasi dan sanitasi |
+| `GET` | `/produk/{id}/edit` | `produk.edit` | Menampilkan formulir ubah data produk |
+| `PUT` | `/produk/{id}` | `produk.update` | Memperbarui data produk terpilih dengan method spoofing |
+| `DELETE` | `/produk/{id}` | `produk.destroy` | Menghapus data produk terpilih dengan method spoofing & CSRF |
 
-Laravel's predictable structure and conventions make it ideal for AI coding agents like Claude Code, Cursor, and GitHub Copilot. Install [Laravel Boost](https://laravel.com/docs/ai) to supercharge your AI workflow:
+---
 
-```bash
-composer require laravel/boost --dev
+### Fitur Keamanan dan Implementasi Teknis
+1. **PDO dan Prepared Statement**:
+   Seluruh query yang menerima parameter input pengguna diakses melalui instans PDO (`DB::connection()->getPdo()`) dengan `prepare()` dan `execute()`, mencegah kerentanan *SQL Injection*.
+2. **Error Handling Terstruktur**:
+   Semua operasi basis data dibungkus dalam blok `try–catch`. Galat dicatat ke log melalui fungsi `report($error)`, sementara respons yang ditampilkan kepada pengguna berupa pesan kesalahan yang aman dan ramah pengguna.
+3. **Sanitasi dan Validasi Server-Side**:
+   - Sanitasi teks menggunakan `trim()` dan `strip_tags()`.
+   - Validasi: `kode_produk` tepat 10 karakter alfanumerik; `nama_produk` 3–100 karakter; `sku` 5–30 karakter; `stok` integer 0–500; `kategori_produk_id` harus valid dan tersedia.
+   - Pencegahan duplikasi kode atau SKU baik saat operasi Create maupun Update data lain.
+4. **Fungsi PHP Sederhana & Tampilan Blade**:
+   Fungsi `statusStok(int $stok)` menampilkan `'Tersedia'` jika stok > 0 dan `'Habis'` jika stok = 0. Ditampilkan pada template Blade murni tanpa framework CSS eksternal (Bootstrap/Tailwind) sesuai ketentuan.
 
-php artisan boost:install
-```
+---
 
-Boost provides your agent 15+ tools and skills that help agents build Laravel applications while following best practices.
+### Sepuluh Skenario Pengujian Wajib (Hasil Uji PHPUnit)
+Seluruh 10 skenario pengujian telah diuji dan lulus otomatis pada `tests/Feature/ProdukTest.php`:
+1. **Read**: Tiga data awal dan nama kategori tampil pada indeks.
+2. **Create valid**: Data baru tersimpan dan feedback keberhasilan muncul.
+3. **Create tidak valid**: Pesan kesalahan tampil dan input lama dipertahankan (`old()`).
+4. **Duplikat**: Kode atau SKU yang sama ditolak tanpa merusak data yang ada.
+5. **Update**: Data lama tampil pada form edit dan perubahan berhasil disimpan.
+6. **Konflik Update**: Nilai unik milik data produk lain ditolak.
+7. **Delete**: Data terpilih terhapus melalui form DELETE dengan proteksi CSRF.
+8. **Pencarian**: Kata kunci pencarian memeriksa tiga kolom (`kode_produk`, `nama_produk`, `sku`).
+9. **Filter**: Hasil daftar produk dapat dibatasi berdasarkan kategori produk.
+10. **Error handling**: Kesalahan koneksi/query dicatat dengan `report()`, pengguna menerima pesan aman.
 
-## Contributing
+---
 
-Thank you for considering contributing to the Laravel framework! The contribution guide can be found in the [Laravel documentation](https://laravel.com/docs/contributions).
+### Panduan Instalasi & Menjalankan Proyek
 
-## Code of Conduct
+1. **Clone repositori**:
+   ```bash
+   git clone https://github.com/cesoqt/Praktikum-Pemrograman-Web-Modul-1.git
+   cd Praktikum-Pemrograman-Web-Modul-1
+   ```
 
-In order to ensure that the Laravel community is welcoming to all, please review and abide by the [Code of Conduct](https://laravel.com/docs/contributions#code-of-conduct).
+2. **Salin konfigurasi environment**:
+   ```bash
+   cp .env.example .env
+   php artisan key:generate
+   ```
 
-## Security Vulnerabilities
+3. **Konfigurasi basis data di `.env`**:
+   ```ini
+   DB_CONNECTION=mysql
+   DB_HOST=127.0.0.1
+   DB_PORT=3306
+   DB_DATABASE=produk_umkm_2401020031
+   DB_USERNAME=root
+   DB_PASSWORD=
+   ```
 
-If you discover a security vulnerability within Laravel, please send an e-mail to Taylor Otwell via [taylor@laravel.com](mailto:taylor@laravel.com). All security vulnerabilities will be promptly addressed.
+4. **Migrasi dan Data Awal**:
+   ```bash
+   php artisan migrate:fresh --seed
+   ```
+   *Atau mengimpor berkas SQL yang disediakan:*
+   ```bash
+   mysql -u root produk_umkm_2401020031 < produk_umkm_2401020031.sql
+   ```
 
-## License
+5. **Jalankan Pengujian Otomatis**:
+   ```bash
+   php artisan test
+   ```
 
-The Laravel framework is open-sourced software licensed under the [MIT license](https://opensource.org/licenses/MIT).
+6. **Jalankan Server**:
+   ```bash
+   php artisan serve
+   ```
+   Buka browser pada alamat: `http://localhost:8000/produk`
+
+---
+
+### Riwayat Commit Terstruktur (UTS)
+1. `feat: migrasi tabel kategori_produk dan produk beserta data awal seeder`
+2. `feat: implementasi read data produk, relasi kategori, dan fungsi statusStok`
+3. `feat: implementasi create produk dengan validasi server-side dan sanitasi`
+4. `feat: implementasi update dan delete produk dengan method spoofing dan pencegahan duplikat`
+5. `feat: implementasi pengujian komprehensif, ekspor basis data SQL, dan dokumentasi README`

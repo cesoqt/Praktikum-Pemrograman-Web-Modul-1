@@ -169,7 +169,7 @@ Route::get('/mahasiswa', function (Request $request) {
             $sql .= ' AND (m.nim LIKE :kata_kunci_nim
                       OR m.nama LIKE :kata_kunci_nama
                       OR m.email LIKE :kata_kunci_email)';
-            $nilaiPencarian = '%' . $kataKunci . '%';
+            $nilaiPencarian = '%'.$kataKunci.'%';
             $parameter['kata_kunci_nim'] = $nilaiPencarian;
             $parameter['kata_kunci_nama'] = $nilaiPencarian;
             $parameter['kata_kunci_email'] = $nilaiPencarian;
@@ -181,7 +181,7 @@ Route::get('/mahasiswa', function (Request $request) {
         $sql .= ' ORDER BY m.nim';
         $ambilMahasiswa = $pdo->prepare($sql);
         $ambilMahasiswa->execute($parameter);
-        $daftarMahasiswa = $ambilMahasiswa->fetchAll(\PDO::FETCH_ASSOC);
+        $daftarMahasiswa = $ambilMahasiswa->fetchAll(PDO::FETCH_ASSOC);
 
         $ambilProdi = $pdo->prepare(
             'SELECT id, nama_prodi
@@ -189,7 +189,7 @@ Route::get('/mahasiswa', function (Request $request) {
              ORDER BY nama_prodi'
         );
         $ambilProdi->execute();
-        $daftarProgramStudi = $ambilProdi->fetchAll(\PDO::FETCH_ASSOC);
+        $daftarProgramStudi = $ambilProdi->fetchAll(PDO::FETCH_ASSOC);
 
         return view('mahasiswa', compact(
             'daftarMahasiswa',
@@ -197,8 +197,9 @@ Route::get('/mahasiswa', function (Request $request) {
             'kataKunci',
             'programStudiId'
         ));
-    } catch (\Throwable $error) {
+    } catch (Throwable $error) {
         report($error);
+
         return response(
             'Data tidak dapat dibaca. Periksa koneksi dan query.',
             500
@@ -233,12 +234,14 @@ Route::post('/mahasiswa', function (Request $request) {
              VALUES (:nim, :nama, :email, :usia, :program_studi_id)'
         );
         $simpan->execute($data);
+
         return redirect()->route('mahasiswa.index')->with(
             'berhasil',
             'Data mahasiswa berhasil ditambahkan.'
         );
-    } catch (\Throwable $error) {
+    } catch (Throwable $error) {
         report($error);
+
         return back()->withInput()->with(
             'gagal',
             'Data gagal disimpan. Periksa koneksi dan data.'
@@ -254,8 +257,8 @@ Route::get('/mahasiswa/{id}/edit', function (int $id) {
              FROM mahasiswa WHERE id = :id'
         );
         $ambilMahasiswa->execute(['id' => $id]);
-        $mahasiswa = $ambilMahasiswa->fetch(\PDO::FETCH_ASSOC);
-        if (!$mahasiswa) {
+        $mahasiswa = $ambilMahasiswa->fetch(PDO::FETCH_ASSOC);
+        if (! $mahasiswa) {
             return redirect()->route('mahasiswa.index')->with(
                 'gagal',
                 'Data mahasiswa tidak ditemukan.'
@@ -265,13 +268,15 @@ Route::get('/mahasiswa/{id}/edit', function (int $id) {
             'SELECT id, nama_prodi FROM program_studi ORDER BY nama_prodi'
         );
         $ambilProdi->execute();
-        $daftarProgramStudi = $ambilProdi->fetchAll(\PDO::FETCH_ASSOC);
+        $daftarProgramStudi = $ambilProdi->fetchAll(PDO::FETCH_ASSOC);
+
         return view('mahasiswa-edit', compact(
             'mahasiswa',
             'daftarProgramStudi'
         ));
-    } catch (\Throwable $error) {
+    } catch (Throwable $error) {
         report($error);
+
         return redirect()->route('mahasiswa.index')->with(
             'gagal',
             'Data gagal dibuka untuk diubah.'
@@ -319,12 +324,14 @@ Route::put('/mahasiswa/{id}', function (Request $request, int $id) {
             'program_studi_id' => $data['program_studi_id'],
             'id' => $id,
         ]);
+
         return redirect()->route('mahasiswa.index')->with(
             'berhasil',
             'Data mahasiswa berhasil diperbarui.'
         );
-    } catch (\Throwable $error) {
+    } catch (Throwable $error) {
         report($error);
+
         return back()->withInput()->with(
             'gagal',
             'Data gagal diperbarui. Periksa koneksi dan data.'
@@ -345,15 +352,105 @@ Route::delete('/mahasiswa/{id}', function (int $id) {
                 'Data mahasiswa tidak ditemukan.'
             );
         }
+
         return redirect()->route('mahasiswa.index')->with(
             'berhasil',
             'Data mahasiswa berhasil dihapus.'
         );
-    } catch (\Throwable $error) {
+    } catch (Throwable $error) {
         report($error);
+
         return redirect()->route('mahasiswa.index')->with(
             'gagal',
             'Data gagal dihapus. Periksa relasi atau koneksi.'
         );
     }
 })->name('mahasiswa.destroy');
+
+// ==================================================
+// UTS PEMROGRAMAN WEB - TIPE C: SISTEM DATA PRODUK UMKM
+// ==================================================
+
+if (! function_exists('statusStok')) {
+    /**
+     * Menentukan status stok produk ('Tersedia' atau 'Habis').
+     */
+    function statusStok(int $stok): string
+    {
+        if ($stok > 0) {
+            return 'Tersedia';
+        }
+
+        return 'Habis';
+    }
+}
+
+Route::redirect('/', '/produk');
+
+Route::get('/produk', function (Request $request) {
+    $kataKunci = trim((string) $request->query('q', ''));
+    $kategoriProdukId = $request->query('kategori_produk_id', '');
+
+    try {
+        $pdo = DB::connection()->getPdo();
+
+        $ambilKategori = $pdo->prepare('SELECT id, nama_kategori FROM kategori_produk ORDER BY nama_kategori ASC');
+        $ambilKategori->execute();
+        $daftarKategori = $ambilKategori->fetchAll(PDO::FETCH_ASSOC);
+
+        $sql = 'SELECT p.id, p.kode_produk, p.nama_produk, p.sku, p.stok, p.kategori_produk_id,
+                       k.nama_kategori
+                FROM produk AS p
+                JOIN kategori_produk AS k ON k.id = p.kategori_produk_id';
+
+        $conditions = [];
+        $params = [];
+
+        if ($kataKunci !== '') {
+            $conditions[] = '(p.kode_produk LIKE :q1 OR p.nama_produk LIKE :q2 OR p.sku LIKE :q3)';
+            $params['q1'] = '%'.$kataKunci.'%';
+            $params['q2'] = '%'.$kataKunci.'%';
+            $params['q3'] = '%'.$kataKunci.'%';
+        }
+
+        if ($kategoriProdukId !== '' && $kategoriProdukId !== null) {
+            $conditions[] = 'p.kategori_produk_id = :kategori_produk_id';
+            $params['kategori_produk_id'] = (int) $kategoriProdukId;
+        }
+
+        if (! empty($conditions)) {
+            $sql .= ' WHERE '.implode(' AND ', $conditions);
+        }
+
+        $sql .= ' ORDER BY p.id ASC';
+
+        $ambilProduk = $pdo->prepare($sql);
+        $ambilProduk->execute($params);
+        $daftarProduk = $ambilProduk->fetchAll(PDO::FETCH_ASSOC);
+
+        return view('produk', compact('daftarProduk', 'daftarKategori', 'kataKunci', 'kategoriProdukId'));
+    } catch (Throwable $error) {
+        report($error);
+
+        return response(
+            'Koneksi atau query basis data gagal. Periksa file .env dan layanan MySQL.',
+            500
+        );
+    }
+})->name('produk.index');
+
+Route::post('/produk', function (Request $request) {
+    // Akan diimplementasikan pada commit Create
+})->name('produk.store');
+
+Route::get('/produk/{id}/edit', function (int $id) {
+    // Akan diimplementasikan pada commit Update
+})->name('produk.edit');
+
+Route::put('/produk/{id}', function (Request $request, int $id) {
+    // Akan diimplementasikan pada commit Update
+})->name('produk.update');
+
+Route::delete('/produk/{id}', function (int $id) {
+    // Akan diimplementasikan pada commit Delete
+})->name('produk.destroy');

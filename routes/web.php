@@ -440,7 +440,93 @@ Route::get('/produk', function (Request $request) {
 })->name('produk.index');
 
 Route::post('/produk', function (Request $request) {
-    // Akan diimplementasikan pada commit Create
+    // Sanitasi input teks relevan
+    $dataBersih = [
+        'kode_produk' => trim(strip_tags((string) $request->input('kode_produk'))),
+        'nama_produk' => trim(strip_tags((string) $request->input('nama_produk'))),
+        'sku' => trim(strip_tags((string) $request->input('sku'))),
+        'stok' => trim((string) $request->input('stok')),
+        'kategori_produk_id' => trim((string) $request->input('kategori_produk_id')),
+    ];
+
+    // Validasi server-side sesuai spesifikasi tipe C
+    $validator = Validator::make($dataBersih, [
+        'kode_produk' => ['required', 'alpha_num', 'size:10'],
+        'nama_produk' => ['required', 'string', 'min:3', 'max:100'],
+        'sku' => ['required', 'string', 'min:5', 'max:30'],
+        'stok' => ['required', 'integer', 'min:0', 'max:500'],
+        'kategori_produk_id' => ['required', 'integer', 'exists:kategori_produk,id'],
+    ], [
+        'kode_produk.required' => 'Kode produk wajib diisi.',
+        'kode_produk.alpha_num' => 'Kode produk harus berupa alfanumerik.',
+        'kode_produk.size' => 'Kode produk harus tepat 10 karakter.',
+        'nama_produk.required' => 'Nama produk wajib diisi.',
+        'nama_produk.min' => 'Nama produk minimal 3 karakter.',
+        'nama_produk.max' => 'Nama produk maksimal 100 karakter.',
+        'sku.required' => 'SKU wajib diisi.',
+        'sku.min' => 'SKU minimal 5 karakter.',
+        'sku.max' => 'SKU maksimal 30 karakter.',
+        'stok.required' => 'Stok wajib diisi.',
+        'stok.integer' => 'Stok harus berupa bilangan bulat.',
+        'stok.min' => 'Stok minimal 0.',
+        'stok.max' => 'Stok maksimal 500.',
+        'kategori_produk_id.required' => 'Kategori produk wajib dipilih.',
+        'kategori_produk_id.exists' => 'Kategori produk yang dipilih tidak valid.',
+    ]);
+
+    if ($validator->fails()) {
+        return back()
+            ->withInput()
+            ->withErrors($validator)
+            ->with('gagal', 'Data gagal disimpan karena input tidak valid.');
+    }
+
+    try {
+        $pdo = DB::connection()->getPdo();
+
+        // Pencegahan data duplikat pada kode_produk atau sku
+        $cek = $pdo->prepare(
+            'SELECT COUNT(*) FROM produk WHERE kode_produk = :kode_produk OR sku = :sku'
+        );
+        $cek->execute([
+            'kode_produk' => $dataBersih['kode_produk'],
+            'sku' => $dataBersih['sku'],
+        ]);
+
+        if ((int) $cek->fetchColumn() > 0) {
+            return back()->withInput()->with(
+                'gagal',
+                'Kode produk atau SKU sudah digunakan.'
+            );
+        }
+
+        $now = date('Y-m-d H:i:s');
+        $simpan = $pdo->prepare(
+            'INSERT INTO produk (kode_produk, nama_produk, sku, stok, kategori_produk_id, created_at, updated_at)
+             VALUES (:kode_produk, :nama_produk, :sku, :stok, :kategori_produk_id, :created_at, :updated_at)'
+        );
+        $simpan->execute([
+            'kode_produk' => $dataBersih['kode_produk'],
+            'nama_produk' => $dataBersih['nama_produk'],
+            'sku' => $dataBersih['sku'],
+            'stok' => (int) $dataBersih['stok'],
+            'kategori_produk_id' => (int) $dataBersih['kategori_produk_id'],
+            'created_at' => $now,
+            'updated_at' => $now,
+        ]);
+
+        return redirect()->route('produk.index')->with(
+            'berhasil',
+            'Data produk berhasil ditambahkan.'
+        );
+    } catch (Throwable $error) {
+        report($error);
+
+        return back()->withInput()->with(
+            'gagal',
+            'Data gagal disimpan. Periksa koneksi dan data.'
+        );
+    }
 })->name('produk.store');
 
 Route::get('/produk/{id}/edit', function (int $id) {
